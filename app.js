@@ -17,16 +17,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const productosRef = collection(db, "productos");
-
 let todosLosProductos = [];
 
-// Cargar productos al iniciar
-document.addEventListener("DOMContentLoaded", async () => {
+async function cargarProductos() {
   const querySnapshot = await getDocs(productosRef);
   todosLosProductos = [];
   querySnapshot.forEach((doc) => {
     todosLosProductos.push({ id: doc.id, ...doc.data() });
   });
+}
+ 
+// Cargar productos al iniciar
+document.addEventListener("DOMContentLoaded", async () => {
+  await cargarProductos();  // cargar productos solo una vez
   mostrarResultados(todosLosProductos);
 });
 
@@ -47,11 +50,14 @@ function mostrarResultados(lista) {
   lista.slice(0, 8).forEach(p => {
     const fila = document.createElement("tr");
     fila.innerHTML = `
-      <td>${p.Concepto || ""}</td>
-      <td>${p.Codigo || p.id}</td>
-      <td>${p["Precio Publico"] || ""}</td>
-      <td><button onclick="borrarProducto('${p.id}')">🗑️</button></td>
-    `;
+  <td>${p.Concepto || ""}</td>
+  <td>${p.Codigo || p.id}</td>
+  <td>${p["Precio Publico"] || ""}</td>
+  <td>
+    <button onclick="editarProducto('${p.id}')">✏️</button>
+    <button onclick="borrarProducto('${p.id}')">🗑️</button>
+  </td>
+`;
     tbody.appendChild(fila);
   });
 }
@@ -72,16 +78,23 @@ window.borrarProducto = async function (id) {
   }
 };
 
-// Mostrar formulario para nuevo producto
-window.mostrarFormulario = function () {
+window.mostrarFormulario = async function () {
   const codigo = prompt("Código de barras:");
   if (!codigo) return;
+
   const concepto = prompt("Descripción del producto:");
   const publico = prompt("Precio público:");
   const mayoreo = prompt("Precio mayoreo:");
   const medioMayoreo = prompt("1/2 Mayoreo:");
 
   if (!concepto || !publico) return alert("Faltan datos obligatorios");
+
+  // Validar existencia
+  const docExistente = await getDoc(doc(productosRef, codigo));
+  if (docExistente.exists()) {
+    alert("Este código ya existe. No se puede duplicar.");
+    return;
+  }
 
   const nuevo = {
     "1/2 Mayoreo": medioMayoreo,
@@ -97,11 +110,42 @@ window.mostrarFormulario = function () {
     "estado": "Nuevo"
   };
 
-  setDoc(doc(productosRef, codigo), nuevo).then(() => {
-    todosLosProductos.push({ id: codigo, ...nuevo });
-    buscarProducto();
-    alert("Producto agregado.");
-  }).catch(err => alert("Error: " + err));
+  await setDoc(doc(productosRef, codigo), nuevo);
+  await cargarProductos();
+  buscarProducto();
+  alert("Producto agregado correctamente.");
+};
+// Editar producto existente
+window.editarProducto = async function (id) {
+  const productoRef = doc(productosRef, id);
+  const docSnap = await getDoc(productoRef);
+
+  if (!docSnap.exists()) {
+    alert("El producto no existe.");
+    return;
+  }
+
+  const data = docSnap.data();
+
+  // Pedimos nuevos valores mostrando los actuales como default
+  const nuevoConcepto = prompt("Descripción:", data.Concepto || "") || data.Concepto;
+  const nuevoPublico = prompt("Precio público:", data["Precio Publico"] || "") || data["Precio Publico"];
+  const nuevoMayoreo = prompt("Precio mayoreo:", data.Mayoreo || "") || data.Mayoreo;
+  const nuevoMedio = prompt("1/2 Mayoreo:", data["1/2 Mayoreo"] || "") || data["1/2 Mayoreo"];
+
+  // Actualizamos Firestore
+  await setDoc(productoRef, {
+    ...data,
+    "Concepto": nuevoConcepto,
+    "Precio Publico": nuevoPublico,
+    "Mayoreo": nuevoMayoreo,
+    "1/2 Mayoreo": nuevoMedio,
+    "estado": "Modificado"
+  });
+
+  await cargarProductos();
+  buscarProducto();
+  alert("Producto actualizado.");
 };
 
 // Cerrar ventana (solo útil si es modal)
