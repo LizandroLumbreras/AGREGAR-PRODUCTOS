@@ -1,80 +1,92 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Catálogo de Artículos</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <title>Nueva Consulta de Artículos</title>
   <script type="module" src="app.js"></script>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #e6e6e6;
-      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #ddd;
+      padding: 30px;
+      display: flex;
+      justify-content: center;
     }
 
     .ventana {
-      background: #fff;
-      border: 1px solid #aaa;
-      border-radius: 4px;
+      background: white;
       padding: 15px;
-      max-width: 750px;
-      margin: auto;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      border-radius: 8px;
+      max-width: 700px;
+      width: 100%;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
     }
 
     h3 {
-      margin-top: 0;
-      font-size: 18px;
       text-align: center;
-      background: #f0f0f0;
+      background: #f1f1f1;
       padding: 10px;
-      border-radius: 3px;
+      margin: 0 0 10px 0;
+      font-weight: bold;
     }
 
     input[type="text"] {
       width: 100%;
       padding: 8px;
+      font-size: 16px;
       margin-bottom: 10px;
-      font-size: 14px;
+      border: 1px solid #ccc;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
-      margin-bottom: 15px;
     }
 
-    th, td {
-      border: 1px solid #999;
-      padding: 6px 8px;
-      text-align: center;
-    }
-
-    th {
+    thead th {
       background: #dfe6e9;
+      padding: 8px;
+      border: 1px solid #ccc;
+    }
+
+    tbody {
+      max-height: 200px;
+      overflow-y: auto;
+      display: block;
+    }
+
+    tbody tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    td {
+      padding: 6px;
+      border: 1px solid #ccc;
+      text-align: center;
     }
 
     .acciones {
       display: flex;
       justify-content: space-between;
+      margin-top: 15px;
     }
 
-    button {
-      padding: 8px 14px;
-      font-size: 14px;
-      cursor: pointer;
+    .acciones button {
+      padding: 8px 16px;
       border: none;
-      border-radius: 3px;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
     }
 
-    .btn-nuevo { background: #2e86de; color: white; }
-    .btn-borrar { background: #e74c3c; color: white; }
-    .btn-salir  { background: #7f8c8d; color: white; }
+    .btn-nuevo { background-color: #3498db; color: white; }
+    .btn-borrar { background-color: #e74c3c; color: white; }
+    .btn-salir  { background-color: #7f8c8d; color: white; }
   </style>
 </head>
 <body>
-
   <div class="ventana">
     <h3>Nueva Consulta de Artículos</h3>
     <input type="text" id="buscador" placeholder="Texto a buscar..." oninput="buscarProducto()" />
@@ -86,7 +98,9 @@
           <th>Publico</th>
         </tr>
       </thead>
-      <tbody id="resultados"></tbody>
+      <tbody id="resultados">
+        <!-- productos se insertarán aquí -->
+      </tbody>
     </table>
 
     <div class="acciones">
@@ -94,10 +108,6 @@
       <button class="btn-borrar" onclick="limpiarBusqueda()">Borrar</button>
       <button class="btn-salir" onclick="cerrarVentana()">Salir</button>
     </div>
-  </div>
-
-  <div id="formulario" style="display:none; margin-top:30px;">
-    <!-- Tu formulario para agregar productos aquí -->
   </div>
 </body>
 </html>
