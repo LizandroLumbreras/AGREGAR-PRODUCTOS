@@ -53,7 +53,7 @@ function mostrarResultados(lista) {
     fila.innerHTML = `
       <td>${p.Concepto || ""}</td>
       <td>${p.Codigo || p.id}</td>
-      <td>${p["Precio Publico"] || ""}</td>
+      <td>$${parseFloat(p["Precio Publico"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
       <td>
         <button onclick="event.stopPropagation(); editarProducto('${p.id}')">✏️</button>
         <button onclick="event.stopPropagation(); borrarProducto('${p.id}')">🗑️</button>
@@ -168,10 +168,10 @@ window.mostrarDetalle = function (id) {
     <p><strong>Concepto:</strong> ${producto.Concepto || ""}</p>
     <p><strong>Código:</strong> ${producto.Codigo || producto.id}</p>
     <p><strong>Código Barra:</strong> ${producto["Codigo Barra"] || ""}</p>
-    <p><strong>Precio Público:</strong> ${producto["Precio Publico"] || ""}</p>
-    <p><strong>Mayoreo:</strong> ${producto.Mayoreo || ""}</p>
-    <p><strong>1/2 Mayoreo:</strong> ${producto["1/2 Mayoreo"] || ""}</p>
-    <p><strong>Costo sin Impuesto:</strong> ${producto["Costo sin Impuesto"] || ""}</p>
+    <p><strong>Precio Público:</strong> $${parseFloat(producto["Precio Publico"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+    <p><strong>Mayoreo:</strong> $${parseFloat(producto.Mayoreo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+    <p><strong>1/2 Mayoreo:</strong> $${parseFloat(producto["1/2 Mayoreo"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+    <p><strong>Costo sin Impuesto:</strong> $${parseFloat(producto["Costo sin Impuesto"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
     <p><strong>Clave Sat:</strong> ${producto["Clave Sat"] || ""}</p>
     <p><strong>Departamento:</strong> ${producto.Departamento || ""}</p>
     <p><strong>Unidad de Medida Sat:</strong> ${producto["Unidad de Medida Sat"] || ""}</p>
