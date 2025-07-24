@@ -52,21 +52,30 @@ input[type="text"] {
 table {
   width: 100%;
   border-collapse: collapse;
-  flex: 1;
-  overflow-y: auto;
-  background: white;
+  table-layout: fixed;
 }
 
+/* Encabezado fijo */
 thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   background: #dfe6e9;
-  padding: 10px;
   border: 1px solid #ccc;
+  text-align: center;
+  padding: 10px;
 }
+
+/* Alineación precisa de columnas */
+thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
+thead th:nth-child(2), tbody td:nth-child(2) { width: 20%; }
+thead th:nth-child(3), tbody td:nth-child(3) { width: 15%; }
+thead th:nth-child(4), tbody td:nth-child(4) { width: 20%; }
 
 tbody {
   display: block;
+  height: calc(100vh - 250px);
   overflow-y: auto;
-  height: calc(100vh - 250px); /* Ajusta el alto visible */
 }
 
 tbody tr {
@@ -75,12 +84,11 @@ tbody tr {
   table-layout: fixed;
 }
 
-td {
-  padding: 8px;
+tbody td {
   border: 1px solid #ccc;
   text-align: center;
+  padding: 10px;
 }
-
 .acciones {
   display: flex;
   justify-content: center;
