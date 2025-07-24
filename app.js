@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, setDoc, deleteDoc, getDocs, getDoc
+  getFirestore, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -16,46 +16,59 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const productosRef = collection(db, "productos");
 
-window.buscarProducto = async () => {
-  const texto = document.getElementById("buscador").value.toLowerCase();
-  const snapshot = await getDocs(productosRef);
-  let encontrados = [];
+let productosCache = [];
 
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    const concepto = (data.Concepto || "").toLowerCase();
-    if (concepto.includes(texto)) {
-      encontrados.push({ id: docSnap.id, ...data });
-    }
+async function cargarProductos() {
+  const snapshot = await getDocs(productosRef);
+  productosCache = [];
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    productosCache.push({
+      id: doc.id,
+      concepto: data.Concepto || "",
+      codigo: data["Codigo Barra"] || "",
+      publico: data["Precio Publico"] || 0
+    });
   });
 
-  mostrarResultados(encontrados.slice(0, 5));
+  productosCache.sort((a, b) => a.concepto.localeCompare(b.concepto));
+  mostrarResultados(productosCache.slice(0, 8));
+}
+
+window.buscarProducto = () => {
+  const texto = document.getElementById("buscador").value.toLowerCase();
+  const filtrados = productosCache.filter(p =>
+    p.concepto.toLowerCase().includes(texto)
+  );
+  mostrarResultados(filtrados.slice(0, 8));
 };
 
-function mostrarResultados(productos) {
+function mostrarResultados(lista) {
   const tbody = document.getElementById("resultados");
   tbody.innerHTML = "";
 
-  productos.forEach(p => {
+  lista.forEach(p => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${p["Concepto"] || ""}</td>
-      <td>${p["Codigo Barra"] || p.id}</td>
-      <td>${p["Precio Publico"]?.toFixed(2) || ""}</td>
+      <td>${p.concepto}</td>
+      <td>${p.codigo}</td>
+      <td>${parseFloat(p.publico).toFixed(2)}</td>
     `;
     tbody.appendChild(tr);
   });
 }
 
-window.mostrarFormulario = () => {
-  document.getElementById("formulario").style.display = "block";
-};
-
 window.limpiarBusqueda = () => {
   document.getElementById("buscador").value = "";
-  document.getElementById("resultados").innerHTML = "";
+  buscarProducto();
+};
+
+window.mostrarFormulario = () => {
+  alert("Aquí irá el formulario para nuevo producto.");
 };
 
 window.cerrarVentana = () => {
-  window.location.href = "about:blank"; // o puedes cerrar un modal, según estructura
+  window.location.href = "about:blank";
 };
+
+cargarProductos();
