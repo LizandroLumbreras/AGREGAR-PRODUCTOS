@@ -11,7 +11,21 @@
       height: 100%;
       width: 100%;
       font-family: Arial, sans-serif;
-      background: #ddd;
+      background: linear-gradient(to right, #00416A, #E4E5E6);
+      color: white;
+      position: relative;
+      box-sizing: border-box;
+    }
+
+    .marca-agua {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0.15;
+      z-index: 0;
+      max-width: 80%;
+      pointer-events: none;
     }
 
     body {
@@ -20,7 +34,7 @@
     }
 
     .ventana {
-      background: white;
+      background: rgba(255, 255, 255, 0.1);
       margin: 0;
       padding: 20px;
       border-radius: 0;
@@ -30,14 +44,16 @@
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
+      z-index: 2;
     }
 
     h3 {
       text-align: center;
-      background: #f1f1f1;
+      background: rgba(255,255,255,0.2);
       padding: 10px;
       margin: 0 0 10px 0;
       font-weight: bold;
+      color: white;
     }
 
     input[type="text"] {
@@ -53,13 +69,15 @@
       text-align: right;
       margin-bottom: 10px;
       font-size: 14px;
-      color: #555;
+      color: #ddd;
     }
 
     table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
+      background: white;
+      color: black;
     }
 
     thead {
@@ -96,7 +114,6 @@
       padding: 10px;
     }
 
-    /* Anchos proporcionales */
     thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
     thead th:nth-child(2), tbody td:nth-child(2) { width: 20%; }
     thead th:nth-child(3), tbody td:nth-child(3) { width: 15%; }
@@ -120,48 +137,56 @@
     .btn-nuevo { background-color: #3498db; color: white; }
     .btn-borrar { background-color: #e74c3c; color: white; }
     .btn-salir  { background-color: #7f8c8d; color: white; }
+
     #modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0,0,0,0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
 
-#modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 0 20px rgba(0,0,0,0.3);
-  position: relative;
-}
+    #modal-content {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      position: relative;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
 
-.cerrar-modal {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  font-size: 24px;
-  cursor: pointer;
-}
+    .cerrar-modal {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 24px;
+      cursor: pointer;
+    }
 
-#modal-datos {
-  margin-top: 20px;
-  font-size: 16px;
-}
-#modal-datos p {
-  margin: 5px 0;
-  font-weight: 500;
-}
+    #modal-datos {
+      margin-top: 20px;
+      font-size: 16px;
+    }
+
+    #modal-datos p {
+      margin: 5px 0;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
+  <img src="logo_proveedora.png" alt="Marca de agua" class="marca-agua">
+
   <div class="ventana">
     <h3>Nueva Consulta de Artículos</h3>
     
@@ -195,12 +220,13 @@
       document.getElementById("contador").textContent = `${total} resultado${total === 1 ? '' : 's'} encontrado${total === 1 ? '' : 's'}`;
     };
   </script>
+
   <div id="modal" style="display:none;">
-  <div id="modal-content">
-    <span class="cerrar-modal" onclick="cerrarModal()">×</span>
-    <h2>Detalles del producto</h2>
-    <div id="modal-datos"></div>
+    <div id="modal-content">
+      <span class="cerrar-modal" onclick="cerrarModal()">×</span>
+      <h2>Detalles del producto</h2>
+      <div id="modal-datos"></div>
+    </div>
   </div>
-</div>
 </body>
 </html>
