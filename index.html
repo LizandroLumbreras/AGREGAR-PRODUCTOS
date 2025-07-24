@@ -5,124 +5,139 @@
   <title>Nueva Consulta de Artículos</title>
   <script type="module" src="app.js"></script>
   <style>
-  html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  font-family: Arial, sans-serif;
-  background: #ddd;
-}
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: Arial, sans-serif;
+      background: #ddd;
+    }
 
-body {
-  display: flex;
-  flex-direction: column;
-}
+    body {
+      display: flex;
+      flex-direction: column;
+    }
 
-.ventana {
-  background: white;
-  margin: 0;
-  padding: 20px;
-  border-radius: 0;
-  width: 100%;
-  height: 100%;
-  box-shadow: none;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-}
+    .ventana {
+      background: white;
+      margin: 0;
+      padding: 20px;
+      border-radius: 0;
+      width: 100%;
+      height: 100%;
+      box-shadow: none;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
 
-h3 {
-  text-align: center;
-  background: #f1f1f1;
-  padding: 10px;
-  margin: 0 0 10px 0;
-  font-weight: bold;
-}
+    h3 {
+      text-align: center;
+      background: #f1f1f1;
+      padding: 10px;
+      margin: 0 0 10px 0;
+      font-weight: bold;
+    }
 
-input[type="text"] {
-  width: 100%;
-  padding: 10px;
-  font-size: 18px;
-  margin-bottom: 10px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-}
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 18px;
+      margin-bottom: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
+    #contador {
+      text-align: right;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #555;
+    }
 
-/* Encabezado fijo */
-thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #dfe6e9;
-  border: 1px solid #ccc;
-  text-align: center;
-  padding: 10px;
-}
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
 
-/* Alineación precisa de columnas */
-thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
-thead th:nth-child(2), tbody td:nth-child(2) { width: 20%; }
-thead th:nth-child(3), tbody td:nth-child(3) { width: 15%; }
-thead th:nth-child(4), tbody td:nth-child(4) { width: 20%; }
+    thead {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
 
-tbody {
-  display: block;
-  height: calc(100vh - 250px);
-  overflow-y: auto;
-}
+    tbody {
+      display: block;
+      height: calc(100vh - 250px);
+      overflow-y: auto;
+    }
 
-tbody tr {
-  display: table;
-  width: 100%;
-  table-layout: fixed;
-}
+    tbody tr {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
 
-tbody td {
-  border: 1px solid #ccc;
-  text-align: center;
-  padding: 10px;
-}
-.acciones {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  padding: 15px 0;
-}
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #dfe6e9;
+      border: 1px solid #ccc;
+      text-align: center;
+      padding: 10px;
+    }
 
-.acciones button {
-  padding: 12px 24px;
-  border: none;
-  font-size: 16px;
-  border-radius: 6px;
-  cursor: pointer;
-}
+    tbody td {
+      border: 1px solid #ccc;
+      text-align: center;
+      padding: 10px;
+    }
 
-.btn-nuevo { background-color: #3498db; color: white; }
-.btn-borrar { background-color: #e74c3c; color: white; }
-.btn-salir  { background-color: #7f8c8d; color: white; }
+    /* Anchos proporcionales */
+    thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
+    thead th:nth-child(2), tbody td:nth-child(2) { width: 20%; }
+    thead th:nth-child(3), tbody td:nth-child(3) { width: 15%; }
+    thead th:nth-child(4), tbody td:nth-child(4) { width: 20%; }
 
+    .acciones {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 15px 0;
+    }
+
+    .acciones button {
+      padding: 12px 24px;
+      border: none;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .btn-nuevo { background-color: #3498db; color: white; }
+    .btn-borrar { background-color: #e74c3c; color: white; }
+    .btn-salir  { background-color: #7f8c8d; color: white; }
   </style>
 </head>
 <body>
   <div class="ventana">
     <h3>Nueva Consulta de Artículos</h3>
+    
     <input type="text" id="buscador" placeholder="Texto a buscar..." oninput="buscarProducto()" />
+    <div id="contador">0 resultados encontrados</div>
+
     <table>
-     <thead>
-  <tr>
-    <th>DESCRIPCIÓN</th>
-    <th>CÓDIGO</th>
-    <th>PRECIO</th>
-    <th>MODIFICAR / ELIMINAR</th>
-  </tr>
-</thead>
+      <thead>
+        <tr>
+          <th>DESCRIPCIÓN</th>
+          <th>CÓDIGO</th>
+          <th>PRECIO</th>
+          <th>MODIFICAR / ELIMINAR</th>
+        </tr>
+      </thead>
       <tbody id="resultados">
         <!-- productos se insertarán aquí -->
       </tbody>
@@ -134,5 +149,12 @@ tbody td {
       <button class="btn-salir" onclick="cerrarVentana()">Salir</button>
     </div>
   </div>
+
+  <script>
+    // Esto actualiza el contador si quieres usarlo en app.js
+    window.actualizarContador = function (total) {
+      document.getElementById("contador").textContent = `${total} resultado${total === 1 ? '' : 's'} encontrado${total === 1 ? '' : 's'}`;
+    };
+  </script>
 </body>
 </html>
