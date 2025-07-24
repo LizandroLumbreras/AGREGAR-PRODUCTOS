@@ -120,6 +120,45 @@
     .btn-nuevo { background-color: #3498db; color: white; }
     .btn-borrar { background-color: #e74c3c; color: white; }
     .btn-salir  { background-color: #7f8c8d; color: white; }
+    #modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+#modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+.cerrar-modal {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+#modal-datos {
+  margin-top: 20px;
+  font-size: 16px;
+}
+#modal-datos p {
+  margin: 5px 0;
+  font-weight: 500;
+}
   </style>
 </head>
 <body>
@@ -156,5 +195,12 @@
       document.getElementById("contador").textContent = `${total} resultado${total === 1 ? '' : 's'} encontrado${total === 1 ? '' : 's'}`;
     };
   </script>
+  <div id="modal" style="display:none;">
+  <div id="modal-content">
+    <span class="cerrar-modal" onclick="cerrarModal()">×</span>
+    <h2>Detalles del producto</h2>
+    <div id="modal-datos"></div>
+  </div>
+</div>
 </body>
 </html>
