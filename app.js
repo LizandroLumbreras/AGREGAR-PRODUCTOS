@@ -46,22 +46,24 @@ window.buscarProducto = function () {
 function mostrarResultados(lista) {
   const tbody = document.getElementById("resultados");
   tbody.innerHTML = "";
+
   lista.sort((a, b) => (a.Concepto || "").localeCompare(b.Concepto || ""));
   lista.slice(0, 8).forEach(p => {
     const fila = document.createElement("tr");
     fila.innerHTML = `
-  <td>${p.Concepto || ""}</td>
-  <td>${p.Codigo || p.id}</td>
-  <td>${p["Precio Publico"] || ""}</td>
-  <td>
-    <button onclick="editarProducto('${p.id}')">✏️</button>
-    <button onclick="borrarProducto('${p.id}')">🗑️</button>
-  </td>
-`;
+      <td>${p.Concepto || ""}</td>
+      <td>${p.Codigo || p.id}</td>
+      <td>${p["Precio Publico"] || ""}</td>
+      <td>
+        <button onclick="event.stopPropagation(); editarProducto('${p.id}')">✏️</button>
+        <button onclick="event.stopPropagation(); borrarProducto('${p.id}')">🗑️</button>
+      </td>
+    `;
+    fila.setAttribute("onclick", `mostrarDetalle('${p.id}')`);
+    fila.style.cursor = "pointer";
     tbody.appendChild(fila);
   });
-  
-  // 👉 Actualiza contador
+
   if (window.actualizarContador) {
     window.actualizarContador(lista.length);
   }
@@ -156,4 +158,28 @@ window.editarProducto = async function (id) {
 // Cerrar ventana (solo útil si es modal)
 window.cerrarVentana = function () {
   alert("Aquí puedes cerrar el modal o redirigir si lo deseas.");
+};
+window.mostrarDetalle = function (id) {
+  const producto = todosLosProductos.find(p => p.id === id);
+  if (!producto) return;
+
+  const contenedor = document.getElementById("modal-datos");
+  contenedor.innerHTML = `
+    <p><strong>Concepto:</strong> ${producto.Concepto || ""}</p>
+    <p><strong>Código:</strong> ${producto.Codigo || producto.id}</p>
+    <p><strong>Código Barra:</strong> ${producto["Codigo Barra"] || ""}</p>
+    <p><strong>Precio Público:</strong> ${producto["Precio Publico"] || ""}</p>
+    <p><strong>Mayoreo:</strong> ${producto.Mayoreo || ""}</p>
+    <p><strong>1/2 Mayoreo:</strong> ${producto["1/2 Mayoreo"] || ""}</p>
+    <p><strong>Costo sin Impuesto:</strong> ${producto["Costo sin Impuesto"] || ""}</p>
+    <p><strong>Clave Sat:</strong> ${producto["Clave Sat"] || ""}</p>
+    <p><strong>Departamento:</strong> ${producto.Departamento || ""}</p>
+    <p><strong>Unidad de Medida Sat:</strong> ${producto["Unidad de Medida Sat"] || ""}</p>
+    <p><strong>Estado:</strong> ${producto.estado || ""}</p>
+  `;
+  document.getElementById("modal").style.display = "flex";
+};
+
+window.cerrarModal = function () {
+  document.getElementById("modal").style.display = "none";
 };
