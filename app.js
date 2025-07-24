@@ -60,6 +60,11 @@ function mostrarResultados(lista) {
 `;
     tbody.appendChild(fila);
   });
+  
+  // 👉 Actualiza contador
+  if (window.actualizarContador) {
+    window.actualizarContador(lista.length);
+  }
 }
 
 // Limpiar buscador
