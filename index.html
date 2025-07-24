@@ -72,19 +72,27 @@
       color: #ddd;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      background: white;
-      color: black;
-    }
+   table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  background: rgba(255, 255, 255, 0.6); /* blanco traslúcido */
+  color: black;
+  backdrop-filter: blur(3px); /* vidrio esmerilado */
+  -webkit-backdrop-filter: blur(3px);
+  border-radius: 10px;
+}
 
-    thead {
-      display: table;
-      width: 100%;
-      table-layout: fixed;
-    }
+   thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.7); /* blanco traslúcido */
+  border: 1px solid #ccc;
+  text-align: center;
+  padding: 10px;
+  color: black;
+}
 
     tbody {
       display: block;
@@ -108,11 +116,12 @@
       padding: 10px;
     }
 
-    tbody td {
-      border: 1px solid #ccc;
-      text-align: center;
-      padding: 10px;
-    }
+  tbody td {
+  border: 1px solid #ccc;
+  text-align: center;
+  padding: 10px;
+  background: rgba(255,255,255,0.5); /* para hacerlas también traslúcidas */
+}
 
     thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
     thead th:nth-child(2), tbody td:nth-child(2) { width: 20%; }
