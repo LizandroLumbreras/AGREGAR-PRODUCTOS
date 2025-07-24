@@ -72,55 +72,51 @@
       color: #ddd;
     }
 
-   table {
+  table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  background: rgba(255, 255, 255, 0.6); /* blanco traslúcido */
+  background: rgba(255, 255, 255, 0.45); /* antes 0.6 */
   color: black;
-  backdrop-filter: blur(3px); /* vidrio esmerilado */
+  backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   border-radius: 10px;
+  overflow: hidden;
 }
 
-   thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: rgba(255, 255, 255, 0.7); /* blanco traslúcido */
+thead, tbody, tr {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+thead {
+  width: calc(100% - 1em); /* para que el scroll de tbody no desplace columnas */
+}
+
+tbody {
+  display: block;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+}
+
+tbody td {
+  background: rgba(255, 255, 255, 0.35); /* antes 0.5 */
   border: 1px solid #ccc;
   text-align: center;
   padding: 10px;
   color: black;
 }
 
-    tbody {
-      display: block;
-      height: calc(100vh - 250px);
-      overflow-y: auto;
-    }
-
-    tbody tr {
-      display: table;
-      width: 100%;
-      table-layout: fixed;
-    }
-
-    thead th {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      background: #dfe6e9;
-      border: 1px solid #ccc;
-      text-align: center;
-      padding: 10px;
-    }
-
-  tbody td {
+thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.5); /* antes 0.7 */
   border: 1px solid #ccc;
-  text-align: center;
   padding: 10px;
-  background: rgba(255,255,255,0.5); /* para hacerlas también traslúcidas */
+  text-align: center;
+  color: black;
+  z-index: 2;
 }
 
     thead th:nth-child(1), tbody td:nth-child(1) { width: 45%; }
