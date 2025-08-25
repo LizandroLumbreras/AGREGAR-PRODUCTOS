@@ -1,5 +1,7 @@
-// app.js
-// 🔹 Firebase CDN imports (navegador puro)
+// app.js – Consulta/edición de artículos (Firestore)
+// Funciona en navegador puro con ES Modules (sin bundler)
+
+// Firebase CDN (usa la misma versión en todos los imports)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, getDocs, getDoc, doc, query, where, limit,
@@ -9,63 +11,71 @@ import {
   getAuth, signInAnonymously
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// 🔹 Tu configuración
+// -------------------- Configuración Firebase --------------------
 const firebaseConfig = {
   apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
   authDomain: "inventariopv-643f1.firebaseapp.com",
   projectId: "inventariopv-643f1",
-  // El bucket no se usa aquí; si lo necesitas, suele ser "<project>.appspot.com"
   storageBucket: "inventariopv-643f1.appspot.com",
   messagingSenderId: "96242533231",
   appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
 };
 
-// 🔹 Init
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
+// Inicia sesión anónima (útil si las reglas requieren auth)
 signInAnonymously(auth).catch(console.error);
 
-// 🔹 DOM
+// -------------------- Elementos DOM --------------------
 const $buscador   = document.getElementById("buscador");
 const $resultados = document.getElementById("resultados");
 const $modal      = document.getElementById("modal");
 const $modalDatos = document.getElementById("modal-datos");
+const COL = "productos";        // cambia si tu colección se llama distinto
+const MAX_CACHE = 1200;         // cuántos documentos trae para búsqueda por texto
 
-const COL = "productos"; // <-- cambia si tu colección se llama distinto
-
-// Utilidad: formateo precio
+// -------------------- Utilidades --------------------
 const fmt = n => (n === undefined || n === null || isNaN(n)) ? "" : Number(n).toFixed(2);
+const norm = s => (s ?? "")
+  .toString()
+  .normalize("NFD").replace(/\p{Diacritic}/gu, "")
+  .toLowerCase();
 
-// Estado cache simple para filtrar en cliente
+function numOrNull(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+// -------------------- Cache --------------------
 let cacheProductos = []; // [{id, ...data}]
 
-// Carga hasta N productos para búsquedas por texto (simple y práctico)
-async function cargarCacheProductos(max = 400) {
+async function cargarCacheProductos(max = MAX_CACHE) {
   if (cacheProductos.length) return cacheProductos;
+  // Carga "n" docs cualquiera (orden por defecto) y filtra en cliente
   const q = query(collection(db, COL), limit(max));
   const snap = await getDocs(q);
   cacheProductos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   return cacheProductos;
 }
 
-// Render de filas
+// -------------------- Render --------------------
 function renderFilas(items) {
   $resultados.innerHTML = "";
-  if (!items.length) {
-    window.actualizarContador?.(0);
-    return;
-  }
+  window.actualizarContador?.(items.length);
+
+  if (!items.length) return;
 
   for (const p of items) {
     const tr = document.createElement("tr");
-    const desc = p.concepto ?? "";
-    const cod  = p.codigoBarra ?? p.id ?? "";
+    const desc   = p.concepto ?? "";
+    const codigo = p.codigoBarra ?? p.id ?? "";
     const precio = p.precioPublico ?? p.mayoreo ?? p.medioMayoreo ?? p.costoSinImpuesto ?? "";
 
     tr.innerHTML = `
       <td title="${desc}">${desc}</td>
-      <td>${cod}</td>
+      <td>${codigo}</td>
       <td>$ ${fmt(precio)}</td>
       <td>
         <button data-id="${p.id}" class="btn-editar">Modificar</button>
@@ -75,53 +85,61 @@ function renderFilas(items) {
     $resultados.appendChild(tr);
   }
 
-  // Bind de botones por fila
+  // Listeners por fila
   $resultados.querySelectorAll(".btn-editar").forEach(btn => {
     btn.addEventListener("click", () => abrirModalEdicion(btn.dataset.id));
   });
   $resultados.querySelectorAll(".btn-eliminar").forEach(btn => {
     btn.addEventListener("click", () => eliminarProducto(btn.dataset.id));
   });
-
-  window.actualizarContador?.(items.length);
 }
 
-// Búsqueda
+// -------------------- Búsqueda --------------------
 async function buscarProducto() {
-  const term = ($buscador.value || "").trim();
+  // Lee SIEMPRE del DOM (evita referencias nulas)
+  const el = document.getElementById('buscador');
+  const termRaw = (el && el.value) ? el.value : "";
+  const termDigits = termRaw.trim();
+  const term = norm(termDigits);
 
-  // Si es código de barras (solo dígitos), intenta match exacto por ID o por campo codigoBarra
-  if (/^\d{6,}$/.test(term)) {
-    // 1) Buscar doc por ID = código
-    const docRef = doc(db, COL, term);
-    const byId = await getDoc(docRef);
+  // 0) Si está vacío, no muestres todo
+  if (!term) {
+    $resultados.innerHTML = "";
+    window.actualizarContador?.(0);
+    return;
+  }
+
+  // 1) Búsqueda por código de barras exacto (solo dígitos largos)
+  if (/^\d{6,}$/.test(termDigits)) {
+    // Busca por ID = código
+    const refById = doc(db, COL, termDigits);
+    const byId = await getDoc(refById);
     if (byId.exists()) {
       renderFilas([{ id: byId.id, ...byId.data() }]);
       return;
     }
-    // 2) Buscar por campo codigoBarra == term
-    const q = query(collection(db, COL), where("codigoBarra", "==", term), limit(10));
+    // O por campo codigoBarra
+    const q = query(collection(db, COL), where("codigoBarra", "==", termDigits), limit(10));
     const snap = await getDocs(q);
-    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderFilas(arr);
+    renderFilas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     return;
   }
 
-  // Si es texto normal: filtrar en cliente (cache)
+  // 2) Búsqueda por texto (concepto/marca/departamento/código contiene…)
   const list = await cargarCacheProductos();
-  const t = term.toLowerCase();
+  const campo = s => norm(s);
   const filtrados = list.filter(p =>
-    (p.concepto && p.concepto.toLowerCase().includes(t)) ||
-    (p.marca && p.marca.toLowerCase().includes(t)) ||
-    (p.departamento && p.departamento.toLowerCase().includes(t)) ||
-    (p.codigoBarra && String(p.codigoBarra).includes(term))
-  ).slice(0, 200); // recorta lo mostrado
-  // Orden simple por descripción
+    (p.concepto && campo(p.concepto).includes(term)) ||
+    (p.marca && campo(p.marca).includes(term)) ||
+    (p.departamento && campo(p.departamento).includes(term)) ||
+    (p.codigoBarra && String(p.codigoBarra).includes(termDigits))
+  );
+
   filtrados.sort((a, b) => (a.concepto ?? "").localeCompare(b.concepto ?? ""));
-  renderFilas(filtrados);
+  renderFilas(filtrados.slice(0, 200)); // muestra hasta 200
 }
 
-// Modal de edición
+// -------------------- Modal: editar / eliminar --------------------
 async function abrirModalEdicion(id) {
   const ref = doc(db, COL, id);
   const snap = await getDoc(ref);
@@ -182,20 +200,16 @@ async function abrirModalEdicion(id) {
       </div>
     </form>
   `;
-
   $modal.style.display = "flex";
 
-  // Guardar
+  // Guardar cambios
   document.getElementById("form-editar").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-
-    // Parseo de tipos
     const upd = {
       concepto: fd.get("concepto")?.trim() || "",
       marca: fd.get("marca")?.trim() || "",
       departamento: fd.get("departamento")?.trim() || "",
-      // codigoBarra no se cambia porque es el ID/clave
       cantidadPorCaja: numOrNull(fd.get("cantidadPorCaja")),
       claveSat: fd.get("claveSat")?.trim() || "",
       costoSinImpuesto: numOrNull(fd.get("costoSinImpuesto")),
@@ -211,12 +225,11 @@ async function abrirModalEdicion(id) {
       await updateDoc(ref, upd);
       alert("Producto actualizado.");
       cerrarModal();
-      // Refrescar la búsqueda actual
-      cacheProductos = []; // limpia cache para que no muestre datos viejos
-      buscarProducto();
+      cacheProductos = [];  // refresca cache
+      buscarProducto();     // vuelve a filtrar con el término actual
     } catch (err) {
       console.error(err);
-      alert("No se pudo guardar. Revisa tus reglas de Firestore y la consola.");
+      alert("No se pudo guardar. Revisa reglas de Firestore y la consola.");
     }
   });
 
@@ -236,7 +249,7 @@ async function abrirModalEdicion(id) {
   });
 }
 
-// Crear nuevo
+// -------------------- Crear nuevo --------------------
 function mostrarFormulario() {
   $modalDatos.innerHTML = `
     <form id="form-nuevo">
@@ -311,7 +324,9 @@ function mostrarFormulario() {
       alert("Producto creado.");
       cerrarModal();
       cacheProductos = [];
-      $buscador.value = id;
+      // Muestra el recién creado
+      const input = document.getElementById('buscador');
+      if (input) input.value = id;
       buscarProducto();
     } catch (err) {
       console.error(err);
@@ -320,33 +335,47 @@ function mostrarFormulario() {
   });
 }
 
-// Utilidades varias
+// -------------------- Acciones varias --------------------
 function cerrarModal() {
   $modal.style.display = "none";
   $modalDatos.innerHTML = "";
 }
 function limpiarBusqueda() {
-  $buscador.value = "";
+  const el = document.getElementById("buscador");
+  if (el) el.value = "";
   $resultados.innerHTML = "";
   window.actualizarContador?.(0);
 }
 function cerrarVentana() {
-  // Ajusta a tu navegación deseada
   if (history.length > 1) history.back();
   else window.location.href = "./";
 }
-function numOrNull(v) {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return isNaN(n) ? null : n;
+async function eliminarProducto(id) {
+  const ref = doc(db, COL, id);
+  if (!confirm("¿Eliminar este producto?")) return;
+  try {
+    await deleteDoc(ref);
+    alert("Producto eliminado.");
+    cacheProductos = [];
+    buscarProducto();
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo eliminar. Revisa reglas de Firestore.");
+  }
 }
 
-// Exponer funciones para los atributos inline del HTML
+// -------------------- Exponer a window (para tus botones del HTML) --------------------
 window.buscarProducto     = buscarProducto;
 window.mostrarFormulario  = mostrarFormulario;
 window.cerrarModal        = cerrarModal;
 window.cerrarVentana      = cerrarVentana;
 window.limpiarBusqueda    = limpiarBusqueda;
 
-// Opcional: autoseleccionar buscador al cargar
+// Además, engancha el input por JS (más robusto que solo oninput inline)
+const $inputBuscador = document.getElementById('buscador');
+if ($inputBuscador) {
+  $inputBuscador.addEventListener('input', buscarProducto);
+}
+
+// Enfoca el buscador al cargar
 $buscador?.focus();
