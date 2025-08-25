@@ -1,7 +1,6 @@
-// app.js – Consulta/edición de artículos (Firestore)
-// Funciona en navegador puro con ES Modules (sin bundler)
+// app.js – Consulta/edición de artículos (Firestore, solo activos)
 
-// Firebase CDN (usa la misma versión en todos los imports)
+// 🔸 Firebase CDN (navegador, sin bundler)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, getDocs, getDoc, doc, query, where, limit,
@@ -11,7 +10,7 @@ import {
   getAuth, signInAnonymously
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// -------------------- Configuración Firebase --------------------
+// ───────────────── Configuración Firebase ─────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
   authDomain: "inventariopv-643f1.firebaseapp.com",
@@ -24,47 +23,45 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
-// Inicia sesión anónima (útil si las reglas requieren auth)
+// Habilita Anonymous en Firebase Auth si tus reglas requieren auth
 signInAnonymously(auth).catch(console.error);
 
-// -------------------- Elementos DOM --------------------
+// ───────────────── Parámetros de la vista ─────────────────
+const COL = "productos";     // cambia si tu colección se llama distinto
+const MAX_CACHE = 1200;      // cuantos docs se cargan para filtrar en cliente
+const SOLO_ACTIVOS = true;   // ← Muestra únicamente artículos con activo:true
+
+// ───────────────── Referencias DOM ─────────────────
 const $buscador   = document.getElementById("buscador");
 const $resultados = document.getElementById("resultados");
 const $modal      = document.getElementById("modal");
 const $modalDatos = document.getElementById("modal-datos");
-const COL = "productos";        // cambia si tu colección se llama distinto
-const MAX_CACHE = 1200;         // cuántos documentos trae para búsqueda por texto
 
-// -------------------- Utilidades --------------------
+// ───────────────── Utilidades ─────────────────
 const fmt = n => (n === undefined || n === null || isNaN(n)) ? "" : Number(n).toFixed(2);
-const norm = s => (s ?? "")
-  .toString()
-  .normalize("NFD").replace(/\p{Diacritic}/gu, "")
-  .toLowerCase();
+const norm = s => (s ?? "").toString().normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+function numOrNull(v){ if(v===null||v===undefined||v==="")return null; const n=Number(v); return isNaN(n)?null:n; }
 
-function numOrNull(v) {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return isNaN(n) ? null : n;
-}
-
-// -------------------- Cache --------------------
+// ───────────────── Cache ─────────────────
 let cacheProductos = []; // [{id, ...data}]
 
 async function cargarCacheProductos(max = MAX_CACHE) {
   if (cacheProductos.length) return cacheProductos;
-  // Carga "n" docs cualquiera (orden por defecto) y filtra en cliente
-  const q = query(collection(db, COL), limit(max));
-  const snap = await getDocs(q);
+
+  const base = collection(db, COL);
+  const qy = SOLO_ACTIVOS
+    ? query(base, where("activo", "==", true), limit(max))
+    : query(base, limit(max));
+
+  const snap = await getDocs(qy);
   cacheProductos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   return cacheProductos;
 }
 
-// -------------------- Render --------------------
+// ───────────────── Render ─────────────────
 function renderFilas(items) {
   $resultados.innerHTML = "";
   window.actualizarContador?.(items.length);
-
   if (!items.length) return;
 
   for (const p of items) {
@@ -72,7 +69,6 @@ function renderFilas(items) {
     const desc   = p.concepto ?? "";
     const codigo = p.codigoBarra ?? p.id ?? "";
     const precio = p.precioPublico ?? p.mayoreo ?? p.medioMayoreo ?? p.costoSinImpuesto ?? "";
-
     tr.innerHTML = `
       <td title="${desc}">${desc}</td>
       <td>${codigo}</td>
@@ -85,7 +81,7 @@ function renderFilas(items) {
     $resultados.appendChild(tr);
   }
 
-  // Listeners por fila
+  // Eventos por fila
   $resultados.querySelectorAll(".btn-editar").forEach(btn => {
     btn.addEventListener("click", () => abrirModalEdicion(btn.dataset.id));
   });
@@ -94,59 +90,63 @@ function renderFilas(items) {
   });
 }
 
-// -------------------- Búsqueda --------------------
+// ───────────────── Búsqueda ─────────────────
 async function buscarProducto() {
-  // Lee SIEMPRE del DOM (evita referencias nulas)
   const el = document.getElementById('buscador');
   const termRaw = (el && el.value) ? el.value : "";
   const termDigits = termRaw.trim();
   const term = norm(termDigits);
 
-  // 0) Si está vacío, no muestres todo
+  // Nada escrito → no mostrar todo
   if (!term) {
     $resultados.innerHTML = "";
     window.actualizarContador?.(0);
     return;
   }
 
-  // 1) Búsqueda por código de barras exacto (solo dígitos largos)
+  // Código de barras exacto (solo dígitos, 6+)
   if (/^\d{6,}$/.test(termDigits)) {
-    // Busca por ID = código
+    // 1) por ID
     const refById = doc(db, COL, termDigits);
     const byId = await getDoc(refById);
     if (byId.exists()) {
-      renderFilas([{ id: byId.id, ...byId.data() }]);
+      const data = byId.data();
+      if (!SOLO_ACTIVOS || data.activo === true) {
+        renderFilas([{ id: byId.id, ...data }]);
+      } else {
+        renderFilas([]); // inactivo
+      }
       return;
     }
-    // O por campo codigoBarra
-    const q = query(collection(db, COL), where("codigoBarra", "==", termDigits), limit(10));
-    const snap = await getDocs(q);
-    renderFilas(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    // 2) por campo codigoBarra
+    const qy = query(collection(db, COL), where("codigoBarra", "==", termDigits), limit(10));
+    let arr = (await getDocs(qy)).docs.map(d => ({ id: d.id, ...d.data() }));
+    if (SOLO_ACTIVOS) arr = arr.filter(p => p.activo === true);
+    renderFilas(arr);
     return;
   }
 
-  // 2) Búsqueda por texto (concepto/marca/departamento/código contiene…)
-  const list = await cargarCacheProductos();
+  // Texto libre: concepto/marca/departamento/código contiene…
+  const list = await cargarCacheProductos(); // ya viene filtrado por activo si SOLO_ACTIVOS=true
   const campo = s => norm(s);
-  const filtrados = list.filter(p =>
-    (p.concepto && campo(p.concepto).includes(term)) ||
-    (p.marca && campo(p.marca).includes(term)) ||
-    (p.departamento && campo(p.departamento).includes(term)) ||
-    (p.codigoBarra && String(p.codigoBarra).includes(termDigits))
+  let filtrados = list.filter(p =>
+    (!SOLO_ACTIVOS || p.activo === true) && (
+      (p.concepto && campo(p.concepto).includes(term)) ||
+      (p.marca && campo(p.marca).includes(term)) ||
+      (p.departamento && campo(p.departamento).includes(term)) ||
+      (p.codigoBarra && String(p.codigoBarra).includes(termDigits))
+    )
   );
 
-  filtrados.sort((a, b) => (a.concepto ?? "").localeCompare(b.concepto ?? ""));
-  renderFilas(filtrados.slice(0, 200)); // muestra hasta 200
+  filtrados.sort((a,b) => (a.concepto ?? "").localeCompare(b.concepto ?? ""));
+  renderFilas(filtrados.slice(0, 200));
 }
 
-// -------------------- Modal: editar / eliminar --------------------
+// ───────────────── Modal edición ─────────────────
 async function abrirModalEdicion(id) {
   const ref = doc(db, COL, id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    alert("El producto ya no existe.");
-    return;
-  }
+  if (!snap.exists()) { alert("El producto ya no existe."); return; }
   const p = { id: snap.id, ...snap.data() };
 
   $modalDatos.innerHTML = `
@@ -193,7 +193,6 @@ async function abrirModalEdicion(id) {
           Activo
         </label>
       </div>
-
       <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end;">
         <button type="button" id="btn-eliminar-modal" style="background:#e74c3c;color:#fff;border:none;padding:8px 14px;border-radius:6px;">Eliminar</button>
         <button type="submit" style="background:#2ecc71;color:#fff;border:none;padding:8px 14px;border-radius:6px;">Guardar cambios</button>
@@ -202,7 +201,7 @@ async function abrirModalEdicion(id) {
   `;
   $modal.style.display = "flex";
 
-  // Guardar cambios
+  // Guardar
   document.getElementById("form-editar").addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
@@ -220,13 +219,12 @@ async function abrirModalEdicion(id) {
       mayoreo: numOrNull(fd.get("mayoreo")),
       activo: fd.get("activo") === "on"
     };
-
     try {
       await updateDoc(ref, upd);
       alert("Producto actualizado.");
       cerrarModal();
-      cacheProductos = [];  // refresca cache
-      buscarProducto();     // vuelve a filtrar con el término actual
+      cacheProductos = [];
+      buscarProducto();
     } catch (err) {
       console.error(err);
       alert("No se pudo guardar. Revisa reglas de Firestore y la consola.");
@@ -249,7 +247,7 @@ async function abrirModalEdicion(id) {
   });
 }
 
-// -------------------- Crear nuevo --------------------
+// ───────────────── Crear nuevo ─────────────────
 function mostrarFormulario() {
   $modalDatos.innerHTML = `
     <form id="form-nuevo">
@@ -324,7 +322,6 @@ function mostrarFormulario() {
       alert("Producto creado.");
       cerrarModal();
       cacheProductos = [];
-      // Muestra el recién creado
       const input = document.getElementById('buscador');
       if (input) input.value = id;
       buscarProducto();
@@ -335,7 +332,7 @@ function mostrarFormulario() {
   });
 }
 
-// -------------------- Acciones varias --------------------
+// ───────────────── Acciones varias ─────────────────
 function cerrarModal() {
   $modal.style.display = "none";
   $modalDatos.innerHTML = "";
@@ -364,18 +361,14 @@ async function eliminarProducto(id) {
   }
 }
 
-// -------------------- Exponer a window (para tus botones del HTML) --------------------
+// ───────────────── Exponer a window + listeners ─────────────────
 window.buscarProducto     = buscarProducto;
 window.mostrarFormulario  = mostrarFormulario;
 window.cerrarModal        = cerrarModal;
 window.cerrarVentana      = cerrarVentana;
 window.limpiarBusqueda    = limpiarBusqueda;
 
-// Además, engancha el input por JS (más robusto que solo oninput inline)
 const $inputBuscador = document.getElementById('buscador');
-if ($inputBuscador) {
-  $inputBuscador.addEventListener('input', buscarProducto);
-}
+if ($inputBuscador) $inputBuscador.addEventListener('input', buscarProducto);
 
-// Enfoca el buscador al cargar
 $buscador?.focus();
