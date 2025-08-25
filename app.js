@@ -1,185 +1,352 @@
 // app.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+// 🔹 Firebase CDN imports (navegador puro)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, getDocs, doc, deleteDoc, setDoc, getDoc
-} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+  getFirestore, collection, getDocs, getDoc, doc, query, where, limit,
+  updateDoc, deleteDoc, setDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth, signInAnonymously
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// Tu configuración Firebase
+// 🔹 Tu configuración
 const firebaseConfig = {
   apiKey: "AIzaSyCK5nb6u2CGRJ8AB1aPlRn54b97bdeAFeM",
   authDomain: "inventariopv-643f1.firebaseapp.com",
   projectId: "inventariopv-643f1",
-  storageBucket: "inventariopv-643f1.firebasestorage.app",
+  // El bucket no se usa aquí; si lo necesitas, suele ser "<project>.appspot.com"
+  storageBucket: "inventariopv-643f1.appspot.com",
   messagingSenderId: "96242533231",
   appId: "1:96242533231:web:aae75a18fbaf9840529e9a"
 };
 
+// 🔹 Init
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const productosRef = collection(db, "productos");
-let todosLosProductos = [];
+const db  = getFirestore(app);
+const auth = getAuth(app);
+signInAnonymously(auth).catch(console.error);
 
-async function cargarProductos() {
-  const querySnapshot = await getDocs(productosRef);
-  todosLosProductos = [];
-  querySnapshot.forEach((doc) => {
-    todosLosProductos.push({ id: doc.id, ...doc.data() });
-  });
+// 🔹 DOM
+const $buscador   = document.getElementById("buscador");
+const $resultados = document.getElementById("resultados");
+const $modal      = document.getElementById("modal");
+const $modalDatos = document.getElementById("modal-datos");
+
+const COL = "productos"; // <-- cambia si tu colección se llama distinto
+
+// Utilidad: formateo precio
+const fmt = n => (n === undefined || n === null || isNaN(n)) ? "" : Number(n).toFixed(2);
+
+// Estado cache simple para filtrar en cliente
+let cacheProductos = []; // [{id, ...data}]
+
+// Carga hasta N productos para búsquedas por texto (simple y práctico)
+async function cargarCacheProductos(max = 400) {
+  if (cacheProductos.length) return cacheProductos;
+  const q = query(collection(db, COL), limit(max));
+  const snap = await getDocs(q);
+  cacheProductos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return cacheProductos;
 }
- 
-// Cargar productos al iniciar
-document.addEventListener("DOMContentLoaded", async () => {
-  await cargarProductos();  // cargar productos solo una vez
-  mostrarResultados(todosLosProductos);
-});
 
-// Buscar productos por texto
-window.buscarProducto = function () {
-  const texto = document.getElementById("buscador").value.toLowerCase();
-  const filtrados = todosLosProductos.filter(p =>
-    p.Concepto?.toLowerCase().includes(texto) ||
-    p["Codigo"]?.includes(texto)
-  );
-  mostrarResultados(filtrados);
-};
+// Render de filas
+function renderFilas(items) {
+  $resultados.innerHTML = "";
+  if (!items.length) {
+    window.actualizarContador?.(0);
+    return;
+  }
 
-function mostrarResultados(lista) {
-  const tbody = document.getElementById("resultados");
-  tbody.innerHTML = "";
+  for (const p of items) {
+    const tr = document.createElement("tr");
+    const desc = p.concepto ?? "";
+    const cod  = p.codigoBarra ?? p.id ?? "";
+    const precio = p.precioPublico ?? p.mayoreo ?? p.medioMayoreo ?? p.costoSinImpuesto ?? "";
 
-  lista.sort((a, b) => (a.Concepto || "").localeCompare(b.Concepto || ""));
-  lista.slice(0, 8).forEach(p => {
-    const fila = document.createElement("tr");
-    fila.innerHTML = `
-      <td>${p.Concepto || ""}</td>
-      <td>${p.Codigo || p.id}</td>
-      <td>$${parseFloat(p["Precio Publico"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+    tr.innerHTML = `
+      <td title="${desc}">${desc}</td>
+      <td>${cod}</td>
+      <td>$ ${fmt(precio)}</td>
       <td>
-        <button onclick="event.stopPropagation(); editarProducto('${p.id}')">✏️</button>
-        <button onclick="event.stopPropagation(); borrarProducto('${p.id}')">🗑️</button>
+        <button data-id="${p.id}" class="btn-editar">Modificar</button>
+        <button data-id="${p.id}" class="btn-eliminar">Eliminar</button>
       </td>
     `;
-    fila.setAttribute("onclick", `mostrarDetalle('${p.id}')`);
-    fila.style.cursor = "pointer";
-    tbody.appendChild(fila);
+    $resultados.appendChild(tr);
+  }
+
+  // Bind de botones por fila
+  $resultados.querySelectorAll(".btn-editar").forEach(btn => {
+    btn.addEventListener("click", () => abrirModalEdicion(btn.dataset.id));
+  });
+  $resultados.querySelectorAll(".btn-eliminar").forEach(btn => {
+    btn.addEventListener("click", () => eliminarProducto(btn.dataset.id));
   });
 
-  if (window.actualizarContador) {
-    window.actualizarContador(lista.length);
-  }
+  window.actualizarContador?.(items.length);
 }
 
-// Limpiar buscador
-window.limpiarBusqueda = function () {
-  document.getElementById("buscador").value = "";
-  mostrarResultados(todosLosProductos);
-};
+// Búsqueda
+async function buscarProducto() {
+  const term = ($buscador.value || "").trim();
 
-// Borrar producto por ID
-window.borrarProducto = async function (id) {
-  if (confirm(`¿Seguro que quieres eliminar el producto ${id}?`)) {
-    await deleteDoc(doc(productosRef, id));
-    todosLosProductos = todosLosProductos.filter(p => p.id !== id);
-    buscarProducto();
-    alert("Producto eliminado.");
-  }
-};
-
-window.mostrarFormulario = async function () {
-  const codigo = prompt("Código de barras:");
-  if (!codigo) return;
-
-  const concepto = prompt("Descripción del producto:");
-  const publico = prompt("Precio público:");
-  const mayoreo = prompt("Precio mayoreo:");
-  const medioMayoreo = prompt("1/2 Mayoreo:");
-
-  if (!concepto || !publico) return alert("Faltan datos obligatorios");
-
-  // Validar existencia
-  const docExistente = await getDoc(doc(productosRef, codigo));
-  if (docExistente.exists()) {
-    alert("Este código ya existe. No se puede duplicar.");
+  // Si es código de barras (solo dígitos), intenta match exacto por ID o por campo codigoBarra
+  if (/^\d{6,}$/.test(term)) {
+    // 1) Buscar doc por ID = código
+    const docRef = doc(db, COL, term);
+    const byId = await getDoc(docRef);
+    if (byId.exists()) {
+      renderFilas([{ id: byId.id, ...byId.data() }]);
+      return;
+    }
+    // 2) Buscar por campo codigoBarra == term
+    const q = query(collection(db, COL), where("codigoBarra", "==", term), limit(10));
+    const snap = await getDocs(q);
+    const arr = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderFilas(arr);
     return;
   }
 
-  const nuevo = {
-    "1/2 Mayoreo": medioMayoreo,
-    "Clave Sat": "50131700",
-    "Codigo": codigo,
-    "Codigo Barra": codigo,
-    "Concepto": concepto,
-    "Costo sin Impuesto": "0",
-    "Departamento": "1",
-    "Mayoreo": mayoreo,
-    "Precio Publico": publico,
-    "Unidad de Medida Sat": "H87",
-    "estado": "Nuevo"
-  };
+  // Si es texto normal: filtrar en cliente (cache)
+  const list = await cargarCacheProductos();
+  const t = term.toLowerCase();
+  const filtrados = list.filter(p =>
+    (p.concepto && p.concepto.toLowerCase().includes(t)) ||
+    (p.marca && p.marca.toLowerCase().includes(t)) ||
+    (p.departamento && p.departamento.toLowerCase().includes(t)) ||
+    (p.codigoBarra && String(p.codigoBarra).includes(term))
+  ).slice(0, 200); // recorta lo mostrado
+  // Orden simple por descripción
+  filtrados.sort((a, b) => (a.concepto ?? "").localeCompare(b.concepto ?? ""));
+  renderFilas(filtrados);
+}
 
-  await setDoc(doc(productosRef, codigo), nuevo);
-  await cargarProductos();
-  buscarProducto();
-  alert("Producto agregado correctamente.");
-};
-// Editar producto existente
-window.editarProducto = async function (id) {
-  const productoRef = doc(productosRef, id);
-  const docSnap = await getDoc(productoRef);
-
-  if (!docSnap.exists()) {
-    alert("El producto no existe.");
+// Modal de edición
+async function abrirModalEdicion(id) {
+  const ref = doc(db, COL, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    alert("El producto ya no existe.");
     return;
   }
+  const p = { id: snap.id, ...snap.data() };
 
-  const data = docSnap.data();
+  $modalDatos.innerHTML = `
+    <form id="form-editar">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label>Descripción
+          <input name="concepto" type="text" value="${p.concepto ?? ""}" required />
+        </label>
+        <label>Marca
+          <input name="marca" type="text" value="${p.marca ?? ""}" />
+        </label>
+        <label>Departamento
+          <input name="departamento" type="text" value="${p.departamento ?? ""}" />
+        </label>
+        <label>Código de barras
+          <input name="codigoBarra" type="text" value="${p.codigoBarra ?? p.id ?? ""}" readonly />
+        </label>
+        <label>Cant. por caja
+          <input name="cantidadPorCaja" type="number" step="1" value="${p.cantidadPorCaja ?? ""}" />
+        </label>
+        <label>Clave SAT
+          <input name="claveSat" type="text" value="${p.claveSat ?? ""}" />
+        </label>
+        <label>Costo sin impuesto
+          <input name="costoSinImpuesto" type="number" step="0.01" value="${p.costoSinImpuesto ?? ""}" />
+        </label>
+        <label>IVA Tasa
+          <input name="ivaTasa" type="number" step="0.01" value="${p.ivaTasa ?? 0}" />
+        </label>
+        <label>IEPS Tasa
+          <input name="iepsTasa" type="number" step="0.01" value="${p.iepsTasa ?? 0}" />
+        </label>
+        <label>Precio Público
+          <input name="precioPublico" type="number" step="0.01" value="${p.precioPublico ?? ""}" />
+        </label>
+        <label>1/2 Mayoreo
+          <input name="medioMayoreo" type="number" step="0.01" value="${p.medioMayoreo ?? ""}" />
+        </label>
+        <label>Mayoreo
+          <input name="mayoreo" type="number" step="0.01" value="${p.mayoreo ?? ""}" />
+        </label>
+        <label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;">
+          <input name="activo" type="checkbox" ${p.activo ? "checked" : ""} />
+          Activo
+        </label>
+      </div>
 
-  // Pedimos nuevos valores mostrando los actuales como default
-  const nuevoConcepto = prompt("Descripción:", data.Concepto || "") || data.Concepto;
-  const nuevoPublico = prompt("Precio público:", data["Precio Publico"] || "") || data["Precio Publico"];
-  const nuevoMayoreo = prompt("Precio mayoreo:", data.Mayoreo || "") || data.Mayoreo;
-  const nuevoMedio = prompt("1/2 Mayoreo:", data["1/2 Mayoreo"] || "") || data["1/2 Mayoreo"];
+      <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" id="btn-eliminar-modal" style="background:#e74c3c;color:#fff;border:none;padding:8px 14px;border-radius:6px;">Eliminar</button>
+        <button type="submit" style="background:#2ecc71;color:#fff;border:none;padding:8px 14px;border-radius:6px;">Guardar cambios</button>
+      </div>
+    </form>
+  `;
 
-  // Actualizamos Firestore
-  await setDoc(productoRef, {
-    ...data,
-    "Concepto": nuevoConcepto,
-    "Precio Publico": nuevoPublico,
-    "Mayoreo": nuevoMayoreo,
-    "1/2 Mayoreo": nuevoMedio,
-    "estado": "Modificado"
+  $modal.style.display = "flex";
+
+  // Guardar
+  document.getElementById("form-editar").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+
+    // Parseo de tipos
+    const upd = {
+      concepto: fd.get("concepto")?.trim() || "",
+      marca: fd.get("marca")?.trim() || "",
+      departamento: fd.get("departamento")?.trim() || "",
+      // codigoBarra no se cambia porque es el ID/clave
+      cantidadPorCaja: numOrNull(fd.get("cantidadPorCaja")),
+      claveSat: fd.get("claveSat")?.trim() || "",
+      costoSinImpuesto: numOrNull(fd.get("costoSinImpuesto")),
+      ivaTasa: numOrNull(fd.get("ivaTasa")) ?? 0,
+      iepsTasa: numOrNull(fd.get("iepsTasa")) ?? 0,
+      precioPublico: numOrNull(fd.get("precioPublico")),
+      medioMayoreo: numOrNull(fd.get("medioMayoreo")),
+      mayoreo: numOrNull(fd.get("mayoreo")),
+      activo: fd.get("activo") === "on"
+    };
+
+    try {
+      await updateDoc(ref, upd);
+      alert("Producto actualizado.");
+      cerrarModal();
+      // Refrescar la búsqueda actual
+      cacheProductos = []; // limpia cache para que no muestre datos viejos
+      buscarProducto();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo guardar. Revisa tus reglas de Firestore y la consola.");
+    }
   });
 
-  await cargarProductos();
-  buscarProducto();
-  alert("Producto actualizado.");
-};
+  // Eliminar
+  document.getElementById("btn-eliminar-modal").addEventListener("click", async () => {
+    if (!confirm("¿Eliminar este producto?")) return;
+    try {
+      await deleteDoc(ref);
+      alert("Producto eliminado.");
+      cerrarModal();
+      cacheProductos = [];
+      buscarProducto();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo eliminar. Revisa reglas de Firestore.");
+    }
+  });
+}
 
-// Cerrar ventana (solo útil si es modal)
-window.cerrarVentana = function () {
-  alert("Aquí puedes cerrar el modal o redirigir si lo deseas.");
-};
-window.mostrarDetalle = function (id) {
-  const producto = todosLosProductos.find(p => p.id === id);
-  if (!producto) return;
-
-  const contenedor = document.getElementById("modal-datos");
-  contenedor.innerHTML = `
-    <p><strong>Concepto:</strong> ${producto.Concepto || ""}</p>
-    <p><strong>Código:</strong> ${producto.Codigo || producto.id}</p>
-    <p><strong>Código Barra:</strong> ${producto["Codigo Barra"] || ""}</p>
-    <p><strong>Precio Público:</strong> $${parseFloat(producto["Precio Publico"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-    <p><strong>Mayoreo:</strong> $${parseFloat(producto.Mayoreo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-    <p><strong>1/2 Mayoreo:</strong> $${parseFloat(producto["1/2 Mayoreo"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-    <p><strong>Costo sin Impuesto:</strong> $${parseFloat(producto["Costo sin Impuesto"] || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-    <p><strong>Clave Sat:</strong> ${producto["Clave Sat"] || ""}</p>
-    <p><strong>Departamento:</strong> ${producto.Departamento || ""}</p>
-    <p><strong>Unidad de Medida Sat:</strong> ${producto["Unidad de Medida Sat"] || ""}</p>
-    <p><strong>Estado:</strong> ${producto.estado || ""}</p>
+// Crear nuevo
+function mostrarFormulario() {
+  $modalDatos.innerHTML = `
+    <form id="form-nuevo">
+      <p style="margin-top:0">Crear nuevo producto</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <label>Código de barras (ID del documento)
+          <input name="codigoBarra" type="text" required />
+        </label>
+        <label>Descripción
+          <input name="concepto" type="text" required />
+        </label>
+        <label>Marca
+          <input name="marca" type="text" />
+        </label>
+        <label>Departamento
+          <input name="departamento" type="text" />
+        </label>
+        <label>Precio Público
+          <input name="precioPublico" type="number" step="0.01" />
+        </label>
+        <label>1/2 Mayoreo
+          <input name="medioMayoreo" type="number" step="0.01" />
+        </label>
+        <label>Mayoreo
+          <input name="mayoreo" type="number" step="0.01" />
+        </label>
+        <label>Costo sin impuesto
+          <input name="costoSinImpuesto" type="number" step="0.01" />
+        </label>
+        <label>IVA Tasa
+          <input name="ivaTasa" type="number" step="0.01" value="0" />
+        </label>
+        <label>IEPS Tasa
+          <input name="iepsTasa" type="number" step="0.01" value="0" />
+        </label>
+        <label style="grid-column:1 / -1;display:flex;align-items:center;gap:8px;">
+          <input name="activo" type="checkbox" checked />
+          Activo
+        </label>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;justify-content:flex-end;">
+        <button type="submit" style="background:#3498db;color:#fff;border:none;padding:8px 14px;border-radius:6px;">Crear</button>
+      </div>
+    </form>
   `;
-  document.getElementById("modal").style.display = "flex";
-};
+  $modal.style.display = "flex";
 
-window.cerrarModal = function () {
-  document.getElementById("modal").style.display = "none";
-};
+  document.getElementById("form-nuevo").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const id = (fd.get("codigoBarra") || "").trim();
+    if (!id) { alert("Código de barras requerido."); return; }
+
+    const data = {
+      codigoBarra: id,
+      concepto: (fd.get("concepto") || "").trim(),
+      marca: (fd.get("marca") || "").trim(),
+      departamento: (fd.get("departamento") || "").trim(),
+      precioPublico: numOrNull(fd.get("precioPublico")),
+      medioMayoreo: numOrNull(fd.get("medioMayoreo")),
+      mayoreo: numOrNull(fd.get("mayoreo")),
+      costoSinImpuesto: numOrNull(fd.get("costoSinImpuesto")),
+      ivaTasa: numOrNull(fd.get("ivaTasa")) ?? 0,
+      iepsTasa: numOrNull(fd.get("iepsTasa")) ?? 0,
+      activo: fd.get("activo") === "on",
+      cantidadPorCaja: null,
+      claveSat: ""
+    };
+
+    try {
+      await setDoc(doc(db, COL, id), data);
+      alert("Producto creado.");
+      cerrarModal();
+      cacheProductos = [];
+      $buscador.value = id;
+      buscarProducto();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo crear. Revisa reglas de Firestore / consola.");
+    }
+  });
+}
+
+// Utilidades varias
+function cerrarModal() {
+  $modal.style.display = "none";
+  $modalDatos.innerHTML = "";
+}
+function limpiarBusqueda() {
+  $buscador.value = "";
+  $resultados.innerHTML = "";
+  window.actualizarContador?.(0);
+}
+function cerrarVentana() {
+  // Ajusta a tu navegación deseada
+  if (history.length > 1) history.back();
+  else window.location.href = "./";
+}
+function numOrNull(v) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+}
+
+// Exponer funciones para los atributos inline del HTML
+window.buscarProducto     = buscarProducto;
+window.mostrarFormulario  = mostrarFormulario;
+window.cerrarModal        = cerrarModal;
+window.cerrarVentana      = cerrarVentana;
+window.limpiarBusqueda    = limpiarBusqueda;
+
+// Opcional: autoseleccionar buscador al cargar
+$buscador?.focus();
